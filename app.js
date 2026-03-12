@@ -5,7 +5,7 @@
 
 const API_BASE = 'https://api.football-data.org/v4';
 const COMPETITION = 'PL';
-const STORAGE_KEY = 'epl-tracker-api-token';
+const STORAGE_KEY = '92fcdacc896f41e49a098df3ad2746d7';
 
 // ---- State ----
 let apiToken = localStorage.getItem(STORAGE_KEY) || '';
