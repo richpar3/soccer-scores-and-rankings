@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EPL Tracker — Premier League Scores & Rankings</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div id="app">
+    <!-- Titlebar -->
+    <header class="titlebar">
+      <div class="titlebar-left">
+        <div class="traffic-light">
+          <span class="dot red"></span>
+          <span class="dot yellow"></span>
+          <span class="dot green"></span>
+        </div>
+      </div>
+      <div class="titlebar-center">
+        <img src="https://crests.football-data.org/PL.png" alt="PL" class="pl-logo">
+        <h1>Premier League Tracker</h1>
+      </div>
+      <div class="titlebar-right">
+        <button id="refresh-btn" class="icon-btn" title="Refresh data">&#x21BB;</button>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="tab-bar">
+      <button class="tab active" data-tab="standings">Standings</button>
+      <button class="tab" data-tab="results">Recent Results</button>
+      <button class="tab" data-tab="upcoming">Upcoming Matches</button>
+    </nav>
+
+    <!-- Loading Indicator -->
+    <div id="loading" class="loading">
+      <div class="spinner"></div>
+      <p>Loading Premier League data&hellip;</p>
+    </div>
+
+    <!-- Error Banner -->
+    <div id="error-banner" class="error-banner hidden">
+      <p id="error-message"></p>
+      <button id="error-dismiss" class="icon-btn">&times;</button>
+    </div>
+
+    <!-- Content Panels -->
+    <main class="content">
+      <!-- Standings Tab -->
+      <section id="standings-panel" class="panel active">
+        <div class="panel-header">
+          <h2>League Standings</h2>
+          <span id="standings-season" class="badge"></span>
+        </div>
+        <div class="table-wrapper">
+          <table id="standings-table">
+            <thead>
+              <tr>
+                <th class="col-pos">#</th>
+                <th class="col-team">Team</th>
+                <th class="col-num">MP</th>
+                <th class="col-num">W</th>
+                <th class="col-num">D</th>
+                <th class="col-num">L</th>
+                <th class="col-num">GF</th>
+                <th class="col-num">GA</th>
+                <th class="col-num">GD</th>
+                <th class="col-num col-pts">Pts</th>
+                <th class="col-form">Form</th>
+              </tr>
+            </thead>
+            <tbody id="standings-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Results Tab -->
+      <section id="results-panel" class="panel">
+        <div class="panel-header">
+          <h2>Recent Results</h2>
+        </div>
+        <div id="results-list" class="match-list"></div>
+      </section>
+
+      <!-- Upcoming Tab -->
+      <section id="upcoming-panel" class="panel">
+        <div class="panel-header">
+          <h2>Upcoming Matches</h2>
+        </div>
+        <div id="upcoming-list" class="match-list"></div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <p>Data provided by <a href="https://www.football-data.org" target="_blank">football-data.org</a></p>
+      <p id="last-updated"></p>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
