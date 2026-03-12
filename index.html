@@ -99,6 +99,27 @@
       <p>Data provided by <a href="https://www.football-data.org" target="_blank">football-data.org</a></p>
       <p id="last-updated"></p>
     </footer>
+
+    <!-- API Key Setup Modal -->
+    <div id="api-key-modal" class="modal hidden">
+      <div class="modal-backdrop"></div>
+      <div class="modal-content">
+        <h3>API Key Setup</h3>
+        <p>This app needs a free API key from <a href="https://www.football-data.org/client/register" target="_blank">football-data.org</a> to fetch live Premier League data.</p>
+        <ol>
+          <li>Go to <a href="https://www.football-data.org/client/register" target="_blank">football-data.org/client/register</a></li>
+          <li>Create a free account</li>
+          <li>Copy your API token and paste it below</li>
+        </ol>
+        <div class="modal-input-group">
+          <input type="text" id="api-key-input" placeholder="Paste your API token here..." spellcheck="false" autocomplete="off">
+          <button id="api-key-save" class="btn-primary">Save & Load Data</button>
+        </div>
+        <div class="modal-divider"><span>or</span></div>
+        <button id="api-key-demo" class="btn-secondary">View Demo Data</button>
+        <p class="modal-hint">Demo mode shows sample data so you can preview the app.</p>
+      </div>
+    </div>
   </div>
 
   <script src="app.js"></script>

@@ -4,15 +4,12 @@
 // ============================================
 
 const API_BASE = 'https://api.football-data.org/v4';
-const COMPETITION = 'PL'; // Premier League
+const COMPETITION = 'PL';
+const STORAGE_KEY = 'epl-tracker-api-token';
 
-// Free-tier token (limited to 10 req/min). Users can replace with their own.
-// Register at https://www.football-data.org/client/register for a free key.
-const API_TOKEN = '';
-
-const headers = API_TOKEN
-  ? { 'X-Auth-Token': API_TOKEN }
-  : {};
+// ---- State ----
+let apiToken = localStorage.getItem(STORAGE_KEY) || '';
+let demoMode = false;
 
 // ---- DOM Elements ----
 const standingsBody = document.getElementById('standings-body');
@@ -25,6 +22,10 @@ const errorMessage = document.getElementById('error-message');
 const errorDismiss = document.getElementById('error-dismiss');
 const refreshBtn = document.getElementById('refresh-btn');
 const lastUpdatedEl = document.getElementById('last-updated');
+const apiKeyModal = document.getElementById('api-key-modal');
+const apiKeyInput = document.getElementById('api-key-input');
+const apiKeySave = document.getElementById('api-key-save');
+const apiKeyDemo = document.getElementById('api-key-demo');
 
 // ---- Tab Navigation ----
 const tabs = document.querySelectorAll('.tab');
@@ -51,28 +52,63 @@ function hideError() {
 
 errorDismiss.addEventListener('click', hideError);
 
+// ---- API Key Modal ----
+function showModal() {
+  loadingEl.classList.add('hidden');
+  apiKeyModal.classList.remove('hidden');
+  apiKeyInput.value = apiToken;
+  apiKeyInput.focus();
+}
+
+function hideModal() {
+  apiKeyModal.classList.add('hidden');
+}
+
+apiKeySave.addEventListener('click', () => {
+  const key = apiKeyInput.value.trim();
+  if (!key) {
+    apiKeyInput.focus();
+    return;
+  }
+  apiToken = key;
+  localStorage.setItem(STORAGE_KEY, key);
+  demoMode = false;
+  hideModal();
+  loadAll();
+});
+
+apiKeyInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') apiKeySave.click();
+});
+
+apiKeyDemo.addEventListener('click', () => {
+  demoMode = true;
+  hideModal();
+  loadAllDemo();
+});
+
 // ---- API Fetch Wrapper ----
 async function apiFetch(endpoint) {
-  const res = await fetch(`${API_BASE}${endpoint}`, { headers });
+  const res = await fetch(`${API_BASE}${endpoint}`, {
+    headers: { 'X-Auth-Token': apiToken }
+  });
   if (!res.ok) {
     if (res.status === 429) {
       throw new Error('Rate limit exceeded. Please wait a moment and try again.');
+    }
+    if (res.status === 400 || res.status === 403) {
+      throw new Error('Invalid API key. Please check your token.');
     }
     throw new Error(`API error: ${res.status} ${res.statusText}`);
   }
   return res.json();
 }
 
-// ---- Standings ----
-async function loadStandings() {
-  const data = await apiFetch(`/competitions/${COMPETITION}/standings`);
-  const standing = data.standings.find(s => s.type === 'TOTAL');
-  if (!standing) return;
-
-  const seasonLabel = `${data.season.startDate.slice(0, 4)}/${data.season.endDate.slice(0, 4)}`;
+// ---- Standings Renderer ----
+function renderStandings(table, seasonLabel) {
   standingsSeason.textContent = seasonLabel;
 
-  standingsBody.innerHTML = standing.table.map(row => {
+  standingsBody.innerHTML = table.map(row => {
     const pos = row.position;
     let zoneClass = '';
     if (pos <= 4) zoneClass = 'zone-ucl';
@@ -91,7 +127,7 @@ async function loadStandings() {
         <td class="col-pos">${pos}</td>
         <td class="col-team">
           <div class="team-cell">
-            <img class="team-crest" src="${escapeAttr(crestUrl)}" alt="" loading="lazy" onerror="this.style.display='none'">
+            ${crestUrl ? `<img class="team-crest" src="${escapeAttr(crestUrl)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
             <span class="team-name">${escapeHtml(row.team.shortName || row.team.name)}</span>
           </div>
         </td>
@@ -109,14 +145,13 @@ async function loadStandings() {
   }).join('');
 }
 
-// ---- Matches ----
+// ---- Matches Renderer ----
 function renderMatches(matches, container, mode) {
   if (!matches.length) {
     container.innerHTML = `<div class="no-matches">No ${mode === 'results' ? 'recent results' : 'upcoming matches'} found.</div>`;
     return;
   }
 
-  // Group by date
   const grouped = {};
   matches.forEach(m => {
     const dateKey = new Date(m.utcDate).toLocaleDateString('en-GB', {
@@ -171,12 +206,12 @@ function renderMatches(matches, container, mode) {
       html += `
         <div class="match-card">
           <div class="match-team home">
-            <img src="${escapeAttr(homeCrest)}" alt="" loading="lazy" onerror="this.style.display='none'">
+            ${homeCrest ? `<img src="${escapeAttr(homeCrest)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
             <span>${escapeHtml(home.shortName || home.name)}</span>
           </div>
           ${centerContent}
           <div class="match-team away">
-            <img src="${escapeAttr(awayCrest)}" alt="" loading="lazy" onerror="this.style.display='none'">
+            ${awayCrest ? `<img src="${escapeAttr(awayCrest)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
             <span>${escapeHtml(away.shortName || away.name)}</span>
           </div>
         </div>
@@ -187,6 +222,15 @@ function renderMatches(matches, container, mode) {
   }
 
   container.innerHTML = html;
+}
+
+// ---- Live Data Loading ----
+async function loadStandings() {
+  const data = await apiFetch(`/competitions/${COMPETITION}/standings`);
+  const standing = data.standings.find(s => s.type === 'TOTAL');
+  if (!standing) return;
+  const seasonLabel = `${data.season.startDate.slice(0, 4)}/${data.season.endDate.slice(0, 4)}`;
+  renderStandings(standing.table, seasonLabel);
 }
 
 async function loadResults() {
@@ -225,25 +269,10 @@ async function loadUpcoming() {
   renderMatches(sorted, upcomingList, 'upcoming');
 }
 
-// ---- Helpers ----
-function formatDate(d) {
-  return d.toISOString().split('T')[0];
-}
-
-function escapeHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
-}
-
-function escapeAttr(str) {
-  return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-// ---- Main Load ----
 async function loadAll() {
   loadingEl.classList.remove('hidden');
   hideError();
+  removeDemoBadge();
 
   try {
     await Promise.all([
@@ -260,10 +289,170 @@ async function loadAll() {
   }
 }
 
-refreshBtn.addEventListener('click', loadAll);
+// ---- Demo Data ----
+function getDemoData() {
+  const teams = [
+    { name: 'Arsenal', shortName: 'Arsenal' },
+    { name: 'Liverpool', shortName: 'Liverpool' },
+    { name: 'Manchester City', shortName: 'Man City' },
+    { name: 'Chelsea', shortName: 'Chelsea' },
+    { name: 'Aston Villa', shortName: 'Aston Villa' },
+    { name: 'Brighton & Hove Albion', shortName: 'Brighton' },
+    { name: 'Newcastle United', shortName: 'Newcastle' },
+    { name: 'Manchester United', shortName: 'Man United' },
+    { name: 'Tottenham Hotspur', shortName: 'Spurs' },
+    { name: 'Nottingham Forest', shortName: "Nott'm Forest" },
+    { name: 'Fulham', shortName: 'Fulham' },
+    { name: 'West Ham United', shortName: 'West Ham' },
+    { name: 'AFC Bournemouth', shortName: 'Bournemouth' },
+    { name: 'Brentford', shortName: 'Brentford' },
+    { name: 'Crystal Palace', shortName: 'Crystal Palace' },
+    { name: 'Wolverhampton Wanderers', shortName: 'Wolves' },
+    { name: 'Everton', shortName: 'Everton' },
+    { name: 'Leicester City', shortName: 'Leicester' },
+    { name: 'Ipswich Town', shortName: 'Ipswich' },
+    { name: 'Southampton', shortName: 'Southampton' }
+  ];
 
-// Auto-refresh every 5 minutes
-setInterval(loadAll, 5 * 60 * 1000);
+  const forms = ['W,W,D,W,W', 'W,W,W,D,L', 'W,D,W,W,D', 'D,W,W,L,W', 'W,L,W,W,D',
+    'D,D,W,W,L', 'W,W,L,D,W', 'L,W,D,W,L', 'W,L,W,D,D', 'D,W,L,W,W',
+    'L,D,W,W,D', 'W,L,D,L,W', 'D,W,L,W,L', 'L,W,W,D,L', 'W,D,L,L,W',
+    'L,L,W,D,W', 'D,L,W,L,D', 'L,D,L,W,L', 'L,L,D,L,W', 'L,L,L,D,L'];
 
-// Initial load
-loadAll();
+  const standingsTable = teams.map((team, i) => {
+    const played = 30;
+    const won = Math.max(0, 22 - i * 1);
+    const draw = Math.min(8, 3 + Math.floor(i * 0.4));
+    const lost = played - won - draw;
+    const gf = Math.max(20, 72 - i * 3);
+    const ga = Math.max(18, 22 + i * 2);
+    return {
+      position: i + 1,
+      team: { name: team.name, shortName: team.shortName, crest: '' },
+      playedGames: played,
+      won,
+      draw,
+      lost,
+      goalsFor: gf,
+      goalsAgainst: ga,
+      goalDifference: gf - ga,
+      points: won * 3 + draw,
+      form: forms[i]
+    };
+  });
+
+  // Generate demo results (last few days)
+  const now = new Date();
+  const demoResults = [];
+  const matchups = [
+    [0, 3], [1, 6], [4, 2], [7, 5], [8, 9],
+    [10, 11], [12, 14], [15, 13], [16, 17], [18, 19]
+  ];
+
+  matchups.forEach(([h, a], idx) => {
+    const d = new Date(now);
+    d.setDate(d.getDate() - (idx < 5 ? 2 : 7));
+    d.setHours(15 + (idx % 3), 0, 0, 0);
+    const hg = Math.floor(Math.random() * 4);
+    const ag = Math.floor(Math.random() * 3);
+    demoResults.push({
+      utcDate: d.toISOString(),
+      status: 'FINISHED',
+      homeTeam: { name: teams[h].name, shortName: teams[h].shortName, crest: '' },
+      awayTeam: { name: teams[a].name, shortName: teams[a].shortName, crest: '' },
+      score: { fullTime: { home: hg, away: ag } }
+    });
+  });
+
+  // Generate demo upcoming matches
+  const demoUpcoming = [];
+  const upcomingMatchups = [
+    [3, 1], [2, 0], [5, 8], [6, 4], [9, 7],
+    [11, 10], [14, 12], [13, 15], [17, 16], [19, 18]
+  ];
+
+  upcomingMatchups.forEach(([h, a], idx) => {
+    const d = new Date(now);
+    d.setDate(d.getDate() + (idx < 5 ? 3 : 10));
+    d.setHours(15 + (idx % 4), 0, 0, 0);
+    demoUpcoming.push({
+      utcDate: d.toISOString(),
+      status: 'TIMED',
+      homeTeam: { name: teams[h].name, shortName: teams[h].shortName, crest: '' },
+      awayTeam: { name: teams[a].name, shortName: teams[a].shortName, crest: '' },
+      score: { fullTime: { home: null, away: null } }
+    });
+  });
+
+  return { standingsTable, demoResults, demoUpcoming };
+}
+
+function loadAllDemo() {
+  loadingEl.classList.remove('hidden');
+  hideError();
+
+  const { standingsTable, demoResults, demoUpcoming } = getDemoData();
+
+  renderStandings(standingsTable, '2025/2026');
+  renderMatches(demoResults, resultsList, 'results');
+  renderMatches(demoUpcoming, upcomingList, 'upcoming');
+
+  addDemoBadge();
+  lastUpdatedEl.textContent = 'Demo mode — sample data';
+  loadingEl.classList.add('hidden');
+}
+
+function addDemoBadge() {
+  removeDemoBadge();
+  const badge = document.createElement('span');
+  badge.className = 'demo-badge';
+  badge.id = 'demo-indicator';
+  badge.textContent = 'DEMO';
+  badge.style.cursor = 'pointer';
+  badge.title = 'Click to enter API key';
+  badge.addEventListener('click', showModal);
+  document.querySelector('.titlebar-center').appendChild(badge);
+}
+
+function removeDemoBadge() {
+  const existing = document.getElementById('demo-indicator');
+  if (existing) existing.remove();
+}
+
+// ---- Helpers ----
+function formatDate(d) {
+  return d.toISOString().split('T')[0];
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function escapeAttr(str) {
+  return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// ---- Refresh ----
+refreshBtn.addEventListener('click', () => {
+  if (demoMode) {
+    loadAllDemo();
+  } else if (apiToken) {
+    loadAll();
+  } else {
+    showModal();
+  }
+});
+
+// Auto-refresh every 5 minutes (only for live mode)
+setInterval(() => {
+  if (!demoMode && apiToken) loadAll();
+}, 5 * 60 * 1000);
+
+// ---- Startup ----
+if (apiToken) {
+  loadAll();
+} else {
+  showModal();
+}
